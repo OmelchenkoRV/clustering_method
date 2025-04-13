@@ -1,0 +1,64 @@
+name: Build and deploy a container to an Azure Web App
+
+env:
+  AZURE_WEBAPP_NAME: clustering microservice  # set this to the name of your Azure Web App
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+
+    steps:
+      # Step 1: Check out the repository
+      - uses: actions/checkout@v2
+
+      # Step 2: Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.12'
+
+      # Step 3: Login to Azure
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Step 4: Build the Docker image
+      - name: Build the Docker image
+        run: docker build . --file Dockerfile --tag my-image-name:latest
+
+      # Step 5: List Docker images
+      - name: List Docker images
+        run: docker images
+
+      # Step 6: Push to Azure Container Registry
+      - name: Push to Azure Container Registry
+        run: |
+          az acr login --name omelchenkorvcontainerregistry
+          docker tag my-image-name:latest omelchenkorvcontainerregistry.azurecr.io/my-image-name:latest
+          docker push omelchenkorvcontainerregistry.azurecr.io/my-image-name:latest
+
+      # Step 7: Deploy to Azure Container Instance
+      - name: Deploy to Azure Container Instance
+        run: |
+          az container create \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --name statistics-service \
+            --image omelchenkorvcontainerregistry.azurecr.io/my-image-name:latest \
+            --cpu 1 \
+            --memory 1.5 \
+            --dns-name-label statistics-service-label \
+            --ports 80 \
+            --registry-login-server ${{ secrets.REGISTRY_LOGIN_SERVER }} \
+            --registry-username ${{ secrets.REGISTRY_USERNAME }} \
+            --registry-password ${{ secrets.REGISTRY_PASSWORD }} \
+            --os-type Linux \
+            --location 'ukwest'
