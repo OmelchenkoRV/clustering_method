@@ -128,6 +128,6 @@ jobs:
             --memory 1 \
             --dns-name-label clustering-service-label \
             --ports 80 \
-            --assign-identity ${{ env.IDENTITY_ID }}
+            --assign-identity ${{ env.IDENTITY_ID }} \
             --os-type Linux \
             --location 'ukwest'
