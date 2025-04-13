@@ -134,6 +134,6 @@ jobs:
             --dns-name-label clustering-service-label \
             --ports 80 \
             --assign-identity ${{ env.IDENTITY_ID }} \
-            --registry-login-server ${{ env.ACR_NAME }}.azurecr.io
+            --registry-login-server ${{ env.ACR_NAME }}.azurecr.io \
             --os-type Linux \
             --location 'ukwest'
