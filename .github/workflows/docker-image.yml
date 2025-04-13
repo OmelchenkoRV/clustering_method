@@ -118,11 +118,11 @@ jobs:
       # Step 9: Deploy to Azure Container Instance with Managed Identity
       - name: Deploy to Azure Container Instance
         run: |
-          # Delete existing container instance if it exists
-          az container delete \
-            --resource-group ${{ secrets.RESOURCE_GROUP }} \
-            --name clustering-service \
-            --yes || true
+#          # Delete existing container instance if it exists
+#          az container delete \
+#            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+#            --name clustering-service \
+#            --yes || true
           
           # Create container instance with managed identity
           az container create \
