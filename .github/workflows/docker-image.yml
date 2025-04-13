@@ -87,13 +87,12 @@ jobs:
           # Get ACR resource ID
           ACR_ID=$(az acr show --name ${{ env.ACR_NAME }} --resource-group $RESOURCE_GROUP_FOR_ACR --query id -o tsv)
           
-          # Assign AcrPull role with explicit object id and principal type to bypass Graph API query errors
+          # Check if the AcrPull role is already assigned
           ROLE_EXISTS=$(az role assignment list --assignee ${{ env.PRINCIPAL_ID }} --scope $ACR_ID --query "length([?roleDefinitionName=='AcrPull'])" -o tsv)
           
           if [ "$ROLE_EXISTS" -eq "0" ]; then
             echo "Assigning AcrPull role..."
             az role assignment create \
-              --assignee ${{ env.PRINCIPAL_ID }} \
               --assignee-object-id ${{ env.PRINCIPAL_ID }} \
               --assignee-principal-type ServicePrincipal \
               --scope $ACR_ID \
@@ -101,6 +100,7 @@ jobs:
           else
             echo "Role assignment already exists"
           fi
+
 
       # Step 7: Build the Docker image
       - name: Build the Docker image
