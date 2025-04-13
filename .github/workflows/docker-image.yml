@@ -1,4 +1,4 @@
-name: Build and deploy a container to an Azure Web App
+name: Build and deploy a container to Azure with Managed Identity
 
 env:
   AZURE_WEBAPP_NAME: clustering microservice  # set this to the name of your Azure Web App
@@ -28,24 +28,67 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Step 4: Build the Docker image
+      # Step 4: Create Managed Identity (if it doesn't exist)
+      - name: Create Managed Identity
+        run: |
+          # Check if identity exists
+          IDENTITY_EXISTS=$(az identity list --resource-group ${{ secrets.RESOURCE_GROUP }} --query "length([?name=='clustering-service-identity'])" -o tsv)
+          
+          if [ "$IDENTITY_EXISTS" -eq "0" ]; then
+            echo "Creating managed identity..."
+            az identity create --name clustering-service-identity --resource-group ${{ secrets.RESOURCE_GROUP }}
+          else
+            echo "Managed identity already exists"
+          fi
+          
+          # Get the identity resource ID
+          IDENTITY_ID=$(az identity show --name clustering-service-identity --resource-group ${{ secrets.RESOURCE_GROUP }} --query id -o tsv)
+          echo "IDENTITY_ID=$IDENTITY_ID" >> $GITHUB_ENV
+          
+          # Get the identity principal ID
+          PRINCIPAL_ID=$(az identity show --name clustering-service-identity --resource-group ${{ secrets.RESOURCE_GROUP }} --query principalId -o tsv)
+          echo "PRINCIPAL_ID=$PRINCIPAL_ID" >> $GITHUB_ENV
+
+      # Step 5: Grant ACR Pull permission to the Managed Identity
+      - name: Grant ACR permissions
+        run: |
+          # Get ACR resource ID
+          ACR_ID=$(az acr show --name omelchenkorvcontainerregistry --resource-group ${{ secrets.RESOURCE_GROUP }} --query id -o tsv)
+          
+          # Assign AcrPull role 
+          ROLE_EXISTS=$(az role assignment list --assignee ${{ env.PRINCIPAL_ID }} --scope $ACR_ID --query "length([?roleDefinitionName=='AcrPull'])" -o tsv)
+          
+          if [ "$ROLE_EXISTS" -eq "0" ]; then
+            echo "Assigning AcrPull role..."
+            az role assignment create \
+              --assignee ${{ env.PRINCIPAL_ID }} \
+              --scope $ACR_ID \
+              --role AcrPull
+          else
+            echo "Role assignment already exists"
+          fi
+
+      # Step 6: Build the Docker image
       - name: Build the Docker image
         run: docker build . --file Dockerfile --tag my-image-name:latest
 
-      # Step 5: List Docker images
-      - name: List Docker images
-        run: docker images
-
-      # Step 6: Push to Azure Container Registry
+      # Step 7: Push to Azure Container Registry
       - name: Push to Azure Container Registry
         run: |
           az acr login --name omelchenkorvcontainerregistry
           docker tag my-image-name:latest omelchenkorvcontainerregistry.azurecr.io/my-image-name:latest
           docker push omelchenkorvcontainerregistry.azurecr.io/my-image-name:latest
 
-      # Step 7: Deploy to Azure Container Instance
+      # Step 8: Deploy to Azure Container Instance with Managed Identity
       - name: Deploy to Azure Container Instance
         run: |
+          # Delete existing container instance if it exists
+          az container delete \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --name clustering-service \
+            --yes || true
+            
+          # Create container instance with managed identity
           az container create \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
             --name clustering-service \
@@ -54,8 +97,6 @@ jobs:
             --memory 1.5 \
             --dns-name-label clustering-service-label \
             --ports 80 \
-            --registry-login-server ${{ secrets.REGISTRY_LOGIN_SERVER }} \
-            --registry-username ${{ secrets.REGISTRY_USERNAME }} \
-            --registry-password ${{ secrets.REGISTRY_PASSWORD }} \
+            --assign-identity ${{ env.IDENTITY_ID }} \
             --os-type Linux \
             --location 'ukwest'
