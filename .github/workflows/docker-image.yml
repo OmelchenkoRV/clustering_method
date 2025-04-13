@@ -51,11 +51,11 @@ jobs:
         run: |
           az container create \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
-            --name statistics-service \
+            --name clustering-service \
             --image omelchenkorvcontainerregistry.azurecr.io/my-image-name:latest \
             --cpu 1 \
             --memory 1.5 \
-            --dns-name-label statistics-service-label \
+            --dns-name-label clustering-service-label \
             --ports 80 \
             --registry-login-server ${{ secrets.REGISTRY_LOGIN_SERVER }} \
             --registry-username ${{ secrets.REGISTRY_USERNAME }} \
