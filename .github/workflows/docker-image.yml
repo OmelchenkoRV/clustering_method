@@ -2,7 +2,7 @@ name: Build and deploy a container to Azure with Managed Identity
 
 env:
   AZURE_WEBAPP_NAME: clustering microservice  # set this to the name of your Azure Web App
-  ACR_NAME: omelchenkorvcontainerregistry  # ACR name
+  ACR_NAME: clusteringservicecontainerregistry  # ACR name
 
 on:
   push:
