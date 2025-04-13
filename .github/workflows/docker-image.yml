@@ -122,6 +122,7 @@ jobs:
           az container delete \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
             --name clustering-service \
+            --registry-username  ${{ env.ACR_NAME }} \
             --yes || true
           
           # Create container instance with managed identity
