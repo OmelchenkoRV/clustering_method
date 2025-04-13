@@ -2,6 +2,7 @@ name: Build and deploy a container to Azure with Managed Identity
 
 env:
   AZURE_WEBAPP_NAME: clustering microservice  # set this to the name of your Azure Web App
+  ACR_NAME: omelchenkorvcontainerregistry  # ACR name
 
 on:
   push:
@@ -28,7 +29,29 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Step 4: Create Managed Identity (if it doesn't exist)
+      # Step 4: Create Azure Container Registry if it doesn't exist
+      - name: Create Azure Container Registry
+        run: |
+          ACR_EXISTS=$(az acr list --query "length([?name=='${{ env.ACR_NAME }}'])" -o tsv)
+          
+          if [ "$ACR_EXISTS" -eq "0" ]; then
+            echo "Creating Azure Container Registry..."
+            az acr create \
+              --name ${{ env.ACR_NAME }} \
+              --resource-group ${{ secrets.RESOURCE_GROUP }} \
+              --sku Basic \
+              --admin-enabled true
+            
+            echo "Waiting for ACR to be fully provisioned..."
+            sleep 30
+          else
+            echo "Azure Container Registry already exists"
+            # Find the resource group for the existing ACR
+            ACR_RESOURCE_GROUP=$(az acr list --query "[?name=='${{ env.ACR_NAME }}'].resourceGroup" -o tsv)
+            echo "ACR_RESOURCE_GROUP=$ACR_RESOURCE_GROUP" >> $GITHUB_ENV
+          fi
+
+      # Step 5: Create Managed Identity (if it doesn't exist)
       - name: Create Managed Identity
         run: |
           # Check if identity exists
@@ -49,11 +72,20 @@ jobs:
           PRINCIPAL_ID=$(az identity show --name clustering-service-identity --resource-group ${{ secrets.RESOURCE_GROUP }} --query principalId -o tsv)
           echo "PRINCIPAL_ID=$PRINCIPAL_ID" >> $GITHUB_ENV
 
-      # Step 5: Grant ACR Pull permission to the Managed Identity
+      # Step 6: Grant ACR Pull permission to the Managed Identity
       - name: Grant ACR permissions
         run: |
+          # Determine which resource group contains the ACR
+          if [ -n "${{ env.ACR_RESOURCE_GROUP }}" ]; then
+            RESOURCE_GROUP_FOR_ACR="${{ env.ACR_RESOURCE_GROUP }}"
+          else
+            RESOURCE_GROUP_FOR_ACR="${{ secrets.RESOURCE_GROUP }}"
+          fi
+          
+          echo "Using resource group: $RESOURCE_GROUP_FOR_ACR for ACR operations"
+          
           # Get ACR resource ID
-          ACR_ID=$(az acr show --name omelchenkorvcontainerregistry --resource-group ${{ secrets.RESOURCE_GROUP }} --query id -o tsv)
+          ACR_ID=$(az acr show --name ${{ env.ACR_NAME }} --resource-group $RESOURCE_GROUP_FOR_ACR --query id -o tsv)
           
           # Assign AcrPull role 
           ROLE_EXISTS=$(az role assignment list --assignee ${{ env.PRINCIPAL_ID }} --scope $ACR_ID --query "length([?roleDefinitionName=='AcrPull'])" -o tsv)
@@ -68,18 +100,32 @@ jobs:
             echo "Role assignment already exists"
           fi
 
-      # Step 6: Build the Docker image
+      # Step 7: Build the Docker image
       - name: Build the Docker image
         run: docker build . --file Dockerfile --tag my-image-name:latest
 
-      # Step 7: Push to Azure Container Registry
+      # Step 8: Push to Azure Container Registry
       - name: Push to Azure Container Registry
         run: |
-          az acr login --name omelchenkorvcontainerregistry
-          docker tag my-image-name:latest omelchenkorvcontainerregistry.azurecr.io/my-image-name:latest
-          docker push omelchenkorvcontainerregistry.azurecr.io/my-image-name:latest
+          # Determine which resource group contains the ACR
+          if [ -n "${{ env.ACR_RESOURCE_GROUP }}" ]; then
+            RESOURCE_GROUP_FOR_ACR="${{ env.ACR_RESOURCE_GROUP }}"
+          else
+            RESOURCE_GROUP_FOR_ACR="${{ secrets.RESOURCE_GROUP }}"
+          fi
+          
+          # Get ACR credentials
+          ACR_USERNAME=$(az acr credential show --name ${{ env.ACR_NAME }} --resource-group $RESOURCE_GROUP_FOR_ACR --query username -o tsv)
+          ACR_PASSWORD=$(az acr credential show --name ${{ env.ACR_NAME }} --resource-group $RESOURCE_GROUP_FOR_ACR --query "passwords[0].value" -o tsv)
+          
+          # Login to ACR
+          echo "$ACR_PASSWORD" | docker login ${{ env.ACR_NAME }}.azurecr.io --username $ACR_USERNAME --password-stdin
+          
+          # Tag and push the image
+          docker tag my-image-name:latest ${{ env.ACR_NAME }}.azurecr.io/my-image-name:latest
+          docker push ${{ env.ACR_NAME }}.azurecr.io/my-image-name:latest
 
-      # Step 8: Deploy to Azure Container Instance with Managed Identity
+      # Step 9: Deploy to Azure Container Instance with Managed Identity
       - name: Deploy to Azure Container Instance
         run: |
           # Delete existing container instance if it exists
@@ -92,7 +138,7 @@ jobs:
           az container create \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
             --name clustering-service \
-            --image omelchenkorvcontainerregistry.azurecr.io/my-image-name:latest \
+            --image ${{ env.ACR_NAME }}.azurecr.io/my-image-name:latest \
             --cpu 1 \
             --memory 1.5 \
             --dns-name-label clustering-service-label \
