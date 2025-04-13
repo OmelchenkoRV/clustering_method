@@ -1,0 +1,31 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.12'
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - name: Build and push Docker image
+      run: |
+        az acr login --name omelchenkorvcontainerregistry
+        docker build . -t omelchenkorvcontainerregistry.azurecr.io/fastapi-clustering_method:latest
+        docker push omelchenkorvcontainerregistry.azurecr.io/fastapi-clustering_method:latest
+    - name: Deploy to App Service
+      run: |
+        az webapp create --name clustering_method \
+          --resource-group clustering_service \
+          --plan ASP-dswarm-b719 \
+          --deployment-container-image-name omelchenkorvcontainerregistry.azurecr.io/fastapi-clustering_method:latest
