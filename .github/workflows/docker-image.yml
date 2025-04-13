@@ -89,18 +89,6 @@ jobs:
           
           # Check if the AcrPull role is already assigned
           ROLE_EXISTS=$(az role assignment list --assignee ${{ env.PRINCIPAL_ID }} --scope $ACR_ID --query "length([?roleDefinitionName=='AcrPull'])" -o tsv)
-          
-          if [ "$ROLE_EXISTS" -eq "0" ]; then
-            echo "Assigning AcrPull role..."
-            az role assignment create \
-              --assignee-object-id ${{ env.PRINCIPAL_ID }} \
-              --assignee-principal-type ServicePrincipal \
-              --scope $ACR_ID \
-              --role AcrPull
-          else
-            echo "Role assignment already exists"
-          fi
-
 
       # Step 7: Build the Docker image
       - name: Build the Docker image
