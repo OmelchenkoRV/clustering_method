@@ -122,7 +122,6 @@ jobs:
           az container delete \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
             --name clustering-service \
-            --registry-username  ${{ env.ACR_NAME }} \
             --yes || true
           
           # Create container instance with managed identity
@@ -134,6 +133,6 @@ jobs:
             --memory 1.5 \
             --dns-name-label clustering-service-label \
             --ports 80 \
-            --assign-identity /subscriptions/92c72dac-de15-4fff-8935-f7c2a2b6c16b/resourceGroups/clustering_service/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clustering-service-identity \
+            --assign-identity ${{ env.IDENTITY_ID }}
             --os-type Linux \
             --location 'ukwest'
