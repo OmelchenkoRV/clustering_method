@@ -119,27 +119,15 @@ jobs:
       - name: Deploy to Azure Container Instance
         run: |
 
-          # Delete existing container instance if it exists
-          az container delete \
-             --resource-group ${{ secrets.RESOURCE_GROUP }} \
-             --name clustering-service \
-          -  -yes || true
-      
-          # Get ACR credentials
-          ACR_USERNAME=$(az acr credential show --name ${{ env.ACR_NAME }} --resource-group $RESOURCE_GROUP_FOR_ACR --query username -o tsv)
-          ACR_PASSWORD=$(az acr credential show --name ${{ env.ACR_NAME }} --resource-group $RESOURCE_GROUP_FOR_ACR --query "passwords[0].value" -o tsv)
-    
-          # Create container instance with registry credentials
+          # Create container instance with managed identity
           az container create \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
             --name clustering-service \
             --image ${{ env.ACR_NAME }}.azurecr.io/my-image-name:latest \
             --cpu 1 \
-            --memory 1.5 \
+            --memory 1 \
             --dns-name-label clustering-service-label \
             --ports 80 \
-            --registry-login-server ${{ env.ACR_NAME }}.azurecr.io \
-            --registry-username $ACR_USERNAME \
-            --registry-password $ACR_PASSWORD \
+            --assign-identity ${{ env.IDENTITY_ID }}
             --os-type Linux \
             --location 'ukwest'
