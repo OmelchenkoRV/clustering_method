@@ -51,44 +51,6 @@ jobs:
             echo "ACR_RESOURCE_GROUP=$ACR_RESOURCE_GROUP" >> $GITHUB_ENV
           fi
 
-      # Step 5: Create Managed Identity (if it doesn't exist)
-      - name: Create Managed Identity
-        run: |
-          # Check if identity exists
-          IDENTITY_EXISTS=$(az identity list --resource-group ${{ secrets.RESOURCE_GROUP }} --query "length([?name=='clustering-service-identity'])" -o tsv)
-          
-          if [ "$IDENTITY_EXISTS" -eq "0" ]; then
-            echo "Creating managed identity..."
-            az identity create --name clustering-service-identity --resource-group ${{ secrets.RESOURCE_GROUP }}
-          else
-            echo "Managed identity already exists"
-          fi
-          
-          # Get the identity resource ID
-          IDENTITY_ID=$(az identity show --name clustering-service-identity --resource-group ${{ secrets.RESOURCE_GROUP }} --query id -o tsv)
-          echo "IDENTITY_ID=$IDENTITY_ID" >> $GITHUB_ENV
-          
-          # Get the identity principal ID
-          PRINCIPAL_ID=$(az identity show --name clustering-service-identity --resource-group ${{ secrets.RESOURCE_GROUP }} --query principalId -o tsv)
-          echo "PRINCIPAL_ID=$PRINCIPAL_ID" >> $GITHUB_ENV
-
-      # Step 6: Grant ACR Pull permission to the Managed Identity
-      - name: Grant ACR permissions
-        run: |
-          # Determine which resource group contains the ACR
-          if [ -n "${{ env.ACR_RESOURCE_GROUP }}" ]; then
-            RESOURCE_GROUP_FOR_ACR="${{ env.ACR_RESOURCE_GROUP }}"
-          else
-            RESOURCE_GROUP_FOR_ACR="${{ secrets.RESOURCE_GROUP }}"
-          fi
-          
-          echo "Using resource group: $RESOURCE_GROUP_FOR_ACR for ACR operations"
-          
-          # Get ACR resource ID
-          ACR_ID=$(az acr show --name ${{ env.ACR_NAME }} --resource-group $RESOURCE_GROUP_FOR_ACR --query id -o tsv)
-          
-          # Check if the AcrPull role is already assigned
-          ROLE_EXISTS=$(az role assignment list --assignee ${{ env.PRINCIPAL_ID }} --scope $ACR_ID --query "length([?roleDefinitionName=='AcrPull'])" -o tsv)
 
       # Step 7: Build the Docker image
       - name: Build the Docker image
