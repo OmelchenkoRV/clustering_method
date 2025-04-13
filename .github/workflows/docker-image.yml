@@ -134,6 +134,5 @@ jobs:
             --dns-name-label clustering-service-label \
             --ports 80 \
             --assign-identity /subscriptions/92c72dac-de15-4fff-8935-f7c2a2b6c16b/resourceGroups/clustering_service/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clustering-service-identity \
-            --registry-login-server ${{ env.ACR_NAME }}.azurecr.io \
             --os-type Linux \
             --location 'ukwest'
