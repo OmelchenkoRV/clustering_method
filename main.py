@@ -8,6 +8,11 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 
 
+@app.get("/")
+def read_root():
+    return {"message": "Clustering service online!"}
+
+
 @app.post("/compute")
 def compute(request: CalculationRequest):
     logging.info("Computation request received")
